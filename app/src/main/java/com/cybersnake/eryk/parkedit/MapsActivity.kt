@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.DialogInterface
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.Location
 import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
@@ -17,10 +18,7 @@ import android.support.v7.app.AlertDialog
 import android.support.v7.app.AppCompatActivity
 import android.util.Log
 import android.widget.Toast
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationCallback
-import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.*
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
@@ -48,6 +46,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
+
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         val mapFragment = supportFragmentManager
                 .findFragmentById(R.id.map) as SupportMapFragment
@@ -61,7 +60,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
         super.onDestroy()
 
-            fusedLocationClient.removeLocationUpdates(locationCallback)
+        fusedLocationClient.removeLocationUpdates(locationCallback)
 
     }
 
@@ -87,11 +86,10 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     }
 
-    private fun permissions(){
-        if (Build.VERSION.SDK_INT>=23){
-            if (ActivityCompat.
-                            checkSelfPermission(this,
-                                    android.Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED){
+    private fun permissions() {
+        if (Build.VERSION.SDK_INT >= 23) {
+            if (ActivityCompat.checkSelfPermission(this,
+                            android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION), MY_PERMISSION_ACCESS_COURSE_LOCATION)
                 return
             }
@@ -99,20 +97,22 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         }
         isLocationOn()
         setMarker()
+//        buildLocationCallBack()
+        buildLocationrequest()
     }
-
-
 
 
     @SuppressLint("MissingPermission")
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
-        when (requestCode)  {
+        when (requestCode) {
             MY_PERMISSION_ACCESS_COURSE_LOCATION -> {
 
                 if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     Toast.makeText(this, "Permissions Granted", Toast.LENGTH_SHORT).show()
                     this.isLocationOn()
                     this.setMarker()
+//                    this.buildLocationCallBack()
+                    this.buildLocationrequest()
                     return
 
 
@@ -133,34 +133,70 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    fun buildLocationCallBack(){
+
+        locationCallback = object : LocationCallback() {
+            override fun onLocationResult(locationResult: LocationResult?) {
+                locationResult ?: return
+                for (location in locationResult.locations){
+
+                }
+            }
+        }
+
+    }
+
+
+    fun buildLocationrequest(){
+        locationRequest.priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+        locationRequest.interval = 5000
+        locationRequest.fastestInterval = 3000
+        locationRequest.smallestDisplacement = 10f
+
+    }
+
+
+
 
     @SuppressLint("MissingPermission")
     fun setMarker() {
 
-        val lastLocation = fusedLocationClient.lastLocation!!
+        val lastLocation = fusedLocationClient.lastLocation
 
-        lastLocation?.addOnCompleteListener {
-            if (it.isSuccessful) {
+        lastLocation?.addOnSuccessListener { location : Location? ->
+            
+
+            fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.myLooper());
                 Log.d("Last Location", "Location Found $lastLocation")
-                val currentLocation = lastLocation?.result
-                currentLocation
                 mMap.isMyLocationEnabled = true
                 mMap.uiSettings.isMyLocationButtonEnabled = true
                 Toast.makeText(this, "Location Found", Toast.LENGTH_LONG).show()
-                if (currentLocation != null) {
+                if (location != null) {
                     Log.d("Last Location", "Location Found $lastLocation")
-                    currentLocation
-                    locationUpdates()
+//                    currentLocation
+//                    locationUpdates()
 //                    mMap.isMyLocationEnabled = true
 //                    mMap.uiSettings.isMyLocationButtonEnabled = true
-                    moveCamera(latLng = LatLng(currentLocation!!.latitude, currentLocation!!.longitude), zoom = DEFAULT_ZOOM, title = "My Car's Location")
-                }else if (currentLocation == null){
+
+                    locationCallback = object : LocationCallback() {
+                        override fun onLocationResult(locationResult: LocationResult?) {
+                            locationResult ?: return
+                            for (location in locationResult.locations){
+                                moveCamera(latLng = LatLng(location!!.latitude, location!!.longitude), zoom = DEFAULT_ZOOM, title = "My Car's Location")
+
+
+                            }
+                        }
+                    }
+
+                    fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.myLooper());
+                    moveCamera(latLng = LatLng(location!!.latitude, location!!.longitude), zoom = DEFAULT_ZOOM, title = "My Car's Location")
+
+                } else if (location == null) {
                     locationUpdates()
                 }
 
 
-
-            }
 
 
         }
@@ -184,32 +220,30 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
             if (!mycarMarker.isVisible) {
 
-            AlertDialog.Builder(this)
-                    .setTitle("Adds A Marker To Your Current Location")
-                    .setMessage("Is This Where You Have Parked?")
-                    .setPositiveButton("Yes", DialogInterface.OnClickListener { dialogInterface, i ->
+                AlertDialog.Builder(this)
+                        .setTitle("Adds A Marker To Your Current Location")
+                        .setMessage("Is This Where You Have Parked?")
+                        .setPositiveButton("Yes", DialogInterface.OnClickListener { dialogInterface, i ->
 
 
+                            mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, zoom))
 
-                           mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, zoom))
-
-                           mycarMarker = mMap.addMarker(MarkerOptions().position(latLng).title(title).icon(BitmapDescriptorFactory.fromResource(R.drawable.car_marker)).draggable(true))
+                            mycarMarker = mMap.addMarker(MarkerOptions().position(latLng).title(title).icon(BitmapDescriptorFactory.fromResource(R.drawable.car_marker)).draggable(true))
 
                             Toast.makeText(this, "Car Parked!", Toast.LENGTH_LONG).show()
 
                             Log.d("Runtime", "Parked up")
 
 
+                        })
+                        .setNegativeButton("No", DialogInterface.OnClickListener { dialogInterface, i ->
 
-                    })
-                    .setNegativeButton("No", DialogInterface.OnClickListener { dialogInterface, i ->
 
+                        })
+                        .show()
+            } else if (mycarMarker.isVisible) {
 
-                    })
-                    .show()
-        } else if (mycarMarker.isVisible){
-
-                    Toast.makeText(this, "You have already parked", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "You have already parked", Toast.LENGTH_LONG).show()
 
             }
 
@@ -231,14 +265,13 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
                             mMap.clear()
 
 
-
                         })
                         .setNegativeButton("No", DialogInterface.OnClickListener { dialogInterface, i ->
 
                         })
                         .show()
 
-            } else if (!mycarMarker.isVisible){
+            } else if (!mycarMarker.isVisible) {
                 Toast.makeText(this, "You haven't parked yet", Toast.LENGTH_LONG).show()
 
             }
@@ -267,17 +300,18 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private fun locationUpdates() {
 
 
-        locationRequest = LocationRequest()
-        locationRequest.interval = 4000
-        locationRequest.fastestInterval = 2000
-        locationRequest.priority = LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY
+        locationRequest = LocationRequest.create().apply {
+            interval = 10000
+            fastestInterval = 5000
+            priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+        }
 
         if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (ContextCompat.checkSelfPermission(this,
                             Manifest.permission.ACCESS_FINE_LOCATION)
                     == PackageManager.PERMISSION_GRANTED) {
                 //Location Permission already granted
-                val updateRequest = fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.myLooper());
+                val updateRequest = fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, null);
                 mMap.isMyLocationEnabled = true
                 mMap.uiSettings.isMyLocationButtonEnabled = true
                 Log.d("MMap2", updateRequest.toString())
@@ -286,7 +320,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 //                runtimePermissions()
             }
         } else {
-            fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.myLooper());
+            fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, null);
             mMap.isMyLocationEnabled = true
             mMap.uiSettings.isMyLocationButtonEnabled = true
             Log.d("MMap", "This works from the else statement")
@@ -295,6 +329,22 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
 
     }
+
+
+
+//    private val builder = LocationSettingsRequest.Builder()
+//            .addLocationRequest(locationRequest)!!
+//
+//    val client: SettingsClient = LocationServices.getSettingsClient(this)
+//    val task: Task<LocationSettingsResponse> = client.checkLocationSettings(builder.build())
+//
+//    @SuppressLint("MissingPermission")
+//    private fun startLocationUpdates() {
+//        fusedLocationClient.requestLocationUpdates(locationRequest,
+//                locationCallback,
+//                null )
+//    }
+
 
 
 }
